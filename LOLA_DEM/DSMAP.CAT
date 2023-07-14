@@ -1,0 +1,166 @@
+Downloaded from:
+https://imbrium.mit.edu/CATALOG/DSMAP.CAT
+
+PDS_VERSION_ID                    = PDS3
+
+LABEL_REVISION_NOTE               = "
+          2010-03-15 original release;
+          2010-12-15 revised PROJECTION_OFFSET keyword description.    
+"
+
+RECORD_TYPE                       = STREAM
+
+OBJECT                            = DATA_SET_MAP_PROJECTION
+ DATA_SET_ID                      = "LRO-L-LOLA-4-GDR-V1.0"
+ TARGET_NAME                      = MOON
+
+ OBJECT                           = DATA_SET_MAP_PROJECTION_INFO
+  MAP_PROJECTION_TYPE             = "SIMPLE CYLINDRICAL"
+  MAP_PROJECTION_DESC             = "
+
+    In the simple cylindrical projection [SNYDER1987], parallels
+    of latitude and meridians of longitude are straight lines that
+    are perpendicular to one another.
+
+    This map projection is centered on the equator. The map
+    resolution is constant throughout the image.
+
+Discrepancies with Offset Parameters in previous releases:
+----------------------------------------------------------
+    The registration of the LOLA GDR image arrays is the same, but the
+    keywords for projection offset have been revised and values decreased 
+    by 1.  Previous releases were based on a description of offset used for 
+    Mars digital elevation models which is inconsistent with that given in 
+    the PDS data dictionary, http://pds.nasa.gov/tools/ddlookup/
+    data_dictionary_lookup.cfm and with examples given in the PDS Standards 
+    Reference, 2009-02-27.  The effect of this description was to give 
+    projection offsets larger by 1.
+
+    The transformation from latitude and longitude (LAT, LON) in
+    degrees to LINE and SAMPLE indices is given here by the following 
+    equations.
+    Longitude increases from west to east and is non-negative.
+
+      SAMPLE = NINT(SAMPLE_PROJECTION_OFFSET + 
+       RES * (LON - CENTER_LONGITUDE)) + 1
+
+      LINE = NINT(LINE_PROJECTION_OFFSET - RES * (LAT - CENTER_LATITUDE)) + 1
+
+    NINT is a Fortran intrinsic rounding function, identical to the C math.h 
+    library function rint.  In the case of half-integer values, the NINT 
+    function rounds to the nearest even whole number.
+
+    The inverse transformation from the center of the pixel (SAMPLE,LINE) is
+
+      LON = CENTER_LONGITUDE + (SAMPLE -SAMPLE_PROJECTION_OFFSET - 1) / RES
+
+      LAT = CENTER_LATITUDE - (LINE - LINE_PROJECTION_OFFSET - 1) / RES
+
+    Note that the offset of 1 is part of the equation, so that the result 
+    of rounding the expression to the nearest whole number will produce a 
+    value of (1,1) for a point whose longitude and latitude lie inside the 
+    upper left-most pixel.
+
+    For a map resolution of one degree per pixel, spanning longitudes from 
+    0 to 360 degrees of longitude and from -90 to 90 degrees in latitude, 
+    with CENTER_LONGITUDE = 180 degrees and CENTER_LATITUDE = 0 degrees, a 
+    point lying in the open interval (0-1) degrees in longitude must lie in 
+    sample 1. Thus, SAMPLE_PROJECTION_OFFSET = 179.5 so that for a point at 
+    0.5 degree longitude, SAMPLE = NINT(179.5 + (0.5 - 180.)) + 1 will 
+    result in a value of 1.
+
+    The value 1 is added after rounding so that longitude 0 also is in 
+    sample 1.  As a convention, longitude 360 lies within the last sample, 
+    although this value should not occur in a standard conversion of angles 
+    to degrees.
+
+    Similarly, LINE_PROJECTION_OFFSET = 89.5 in this example.
+    For a point lying midway between 89 and 90 degrees latitude,
+    LINE = NINT(89.5 - (89.5 - 0.0)) + 1 will result in a value of 1.
+    As a convention, latitude -90 lies within the last line.
+
+    These equations refer to a digital array in which the positive 
+    direction is to the right and down, and where:
+
+    LAT and LON are the latitude and longitude of a given spot on the 
+    surface in degrees.
+
+    LINE_PROJECTION_OFFSET provides the line offset value of the map 
+      projection origin position from the line and sample 1,1 (line and 
+    sample 1,1 is considered the upper left corner of the digital array).
+
+    SAMPLE_PROJECTION_OFFSET provides the sample offset value of the map 
+       projection origin position from line and sample 1,1 (line and sample 
+    1,1 is considered the upper left corner of the digital array). 
+
+    CENTER_LONGITUDE, CENTER_LATITUDE
+      are the longitude and latitude chosen as the origin of the map 
+    projection.
+
+    RES (MAP_RESOLUTION) is the number of pixels per degree at the 
+      projection origin.
+
+    Values for LINE_PROJECTION_OFFSET, SAMPLE_PROJECTION_OFFSET, 
+      CENTER_LONGITUDE, CENTER_LATITUDE, and MAP_RESOLUTION are found
+      in the IMAGE_MAP_PROJECTION object in an image's PDS label.
+
+    In the above definitions, a pixel is assumed to cover an area, and 
+    the integral values of LINE and SAMPLE are assumed to correspond to
+    the center of the area. The pixel in the upper left corner is line 1, 
+    sample 1. The latitude and longitude corresponding to the center of 
+    pixel (1,1) are maximum latitude - 1/(RES*2) and westernmost longitude
+    + 1/(RES*2). The top edge of pixel (1,1) has the maximum latitude in
+    the image. The left edge of pixel (1,1) has westernmost longitude
+    in the image.
+
+##############################################################################
+  Previously, these definitions were worded as:
+    LINE_PROJECTION_OFFSET
+      is the line number on which the map projection origin occurs;  
+      i.e., the line number that corresponds to the center latitude.
+      
+    SAMPLE_PROJECTION_OFFSET
+      is the sample number on which the map projection origin occurs; 
+      i.e., the sample number that corresponds to the center longitude.
+     
+      Integral values of LINE and SAMPLE are assumed to correspond to 
+      the center of the area covered by that pixel.
+
+  and the equations as
+
+      SAMPLE = SAMPLE_PROJECTION_OFFSET + RES * (LON - CENTER_LONGITUDE)
+      LINE = LINE_PROJECTION_OFFSET - RES * (LAT - CENTER_LATITUDE)
+
+  where it was not specified how rounding is performed, but we believe 
+  rounding to nearest integer was implied.
+
+  In our example above, the distance from the center of the
+  SAMPLE_PROJECTION_OFFSET = 180.5, and for longitude 0.0,
+  SAMPLE = 0.5, which rounds to zero and is not a valid index.
+  For longitudes greater than zero but less than 1, SAMPLE = 1.
+
+  Lastly, the USGS Lunar MDIM (Eliason, 7/1/1997) uses a convention for
+  projections in which the equation for LINE is
+
+  LINE = INT(LINE_PROJECTION_OFFSET - LAT*MAP_RESOLUTION)
+
+  Assuming the usual meaning of INT as rounding downward, this implies
+  for our example that LINE_PROJECTION_OFFSET = 91.
+##############################################################################
+
+"
+
+  ROTATIONAL_ELEMENT_DESC         = "See [SEIDELMANNETAL2002]."
+
+  OBJECT                          = DS_MAP_PROJECTION_REF_INFO
+   REFERENCE_KEY_ID               = "SEIDELMANNETAL2002"
+  END_OBJECT                      = DS_MAP_PROJECTION_REF_INFO
+
+  OBJECT                          = DS_MAP_PROJECTION_REF_INFO
+   REFERENCE_KEY_ID               = "SNYDER1987"
+  END_OBJECT                      = DS_MAP_PROJECTION_REF_INFO
+
+ END_OBJECT                       = DATA_SET_MAP_PROJECTION_INFO
+END_OBJECT                        = DATA_SET_MAP_PROJECTION
+
+END
