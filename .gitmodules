@@ -1,0 +1,3 @@
+[submodule "extern/submodules/lunar-RFI"]
+	path = extern/submodules/lunar-RFI
+	url = https://github.com/npbassett/lunar-RFI.git
