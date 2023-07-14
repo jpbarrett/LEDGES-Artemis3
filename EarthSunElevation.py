@@ -269,7 +269,7 @@ def main():
     freq_kHZ = freq_MHz*MHz2KHz
     height = 0.010; #assume and elevation of 10m (TODO use LRO digital elevation model)
 
-    site_df = pd.DataFrame(columns=['site_name', 'earth_frac_below', 'sun_frac_below', 'earth_max_duration_below', "sun_max_duration_below", "both_max_duration_below"])
+    site_df = pd.DataFrame(columns=['site_name', 'earth_frac_below', 'sun_frac_below', 'earth_max_duration_below', "sun_max_duration_below", "both_max_duration_below"], dtype=object)
 
     for current_site in site_table:
         print(current_site[0], current_site[1], current_site[2])
