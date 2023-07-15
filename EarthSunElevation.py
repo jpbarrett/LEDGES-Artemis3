@@ -20,6 +20,7 @@ import matplotlib.dates as mdates
 from matplotlib.ticker import FormatStrFormatter, ScalarFormatter
 from matplotlib import gridspec
 
+from calc_width import calc_width
 
 def intrp_width(dB, df):
     dB_list =  list(df["suppression (dB)"])
@@ -34,18 +35,24 @@ def intrp_width(dB, df):
     return cw_val, err_plus_val, err_minus_val
 
 
-def plot_time_series(earth_table, sun_table, current_site, dB_el_dataframe, horizon_dB, antenna_dB, odir):
+def plot_time_series(earth_table, sun_table, current_site, horizon_dB, antenna_dB, odir):
     """ plot as a time series """
 
+    m2km = 1.0/1000.0
     MHz2KHz = 1000
     arcsec2Deg = 1.0/3600.0
     low_freq = 50*MHz2KHz
     high_freq = 100*MHz2KHz;
-    height = 0.0;
+    current_site_height = max(0,current_site[3])*m2km ;
     total_dB = horizon_dB + antenna_dB
 
-    #interpolate the cone_width, upper/lower error for this horizon_dB
-    cone_width, cone_err_upper, cone_err_lower = intrp_width(horizon_dB, dB_el_dataframe)
+    freq_MHz = 50; #diffraction is worse at lower frequencies, so use low end of band, 50MHz
+    freq_kHZ = freq_MHz*MHz2KHz
+
+    #calculate cone_width, upper/lower error for this horizon_dB
+    #cone_width, cone_err_upper, cone_err_lower = intrp_width(horizon_dB, dB_el_dataframe)
+    print("SITE HEIGHT IN KM = ", current_site_height)
+    cone_width, cone_err_upper, cone_err_lower = calc_width(freq_kHZ, current_site_height, horizon_dB)
     print(cone_width, cone_err_upper, cone_err_lower)
 
     #elevation limit
@@ -88,6 +95,7 @@ def plot_time_series(earth_table, sun_table, current_site, dB_el_dataframe, hori
     for i in range(0, len(z)):
         zp.append(z[i] + (sun_ang_width[i]*arcsec2Deg)/2.0)
         zm.append(z[i] - (sun_ang_width[i]*arcsec2Deg)/2.0)
+
 
     #plot data
     fig = plt.figure(figsize=(11,8))
@@ -164,7 +172,7 @@ def plot_time_series(earth_table, sun_table, current_site, dB_el_dataframe, hori
 
     #add some information, and adjust plot
     plt.grid(True)
-    plt.title('Earth/Sun elevation for site: ' + current_site[0] + "    (Lat,Lon) = (" + str(current_site[1]) + "," + str(current_site[2]) +")" )
+    plt.title('Earth/Sun elevation for site: ' + current_site[0] + "    (Lat, Lon, Height) = (" + str(current_site[1]) + "," + str(current_site[2]) + "," + str(current_site[3]) + ")" )
     plt.xlabel('Days since '+ start_day_str)
     plt.ylabel('Elevation (deg)')
     plt.legend()
@@ -185,7 +193,56 @@ def plot_time_series(earth_table, sun_table, current_site, dB_el_dataframe, hori
         }
 
     print(site_data)
-    return site_data
+
+
+
+    #next we plot the Earth elevation minus the elevaton limit vs the sun elevation 
+    #plot data
+    fig2 = plt.figure(figsize=(11,8))
+    earth_delta = -1*earth_delta
+    plt.plot(earth_delta, zp, color='k')
+    plt.grid(True)
+    plt.title('Earth Elevation relative to RFI elevation limit vs Sun Elevation' )
+    plt.xlabel('Earth Elevation relative to RFI elevation limit (deg)')
+    plt.ylabel('Sun Elevation (deg)')
+    outfile = os.path.join( odir, current_site[0] + "_conops.png")
+
+
+    ax  = plt.gca()
+    earth_cutoff = 0.0
+    sun_cutoff = 0.0
+    ax.axvline(earth_cutoff,color = 'black',linestyle='dashed',lw=2)
+    ax.axhline(sun_cutoff,color = 'black',linestyle='dashed',lw=2)
+    if min(earth_delta) < earth_cutoff:
+        ax.fill_between([min(earth_delta), earth_cutoff], min(zp), sun_cutoff, alpha=0.3, color='#00FF00', label="Observe/Warm")  #green '#1F98D0'blue
+    if earth_cutoff <  max(earth_delta):
+        ax.fill_between([earth_cutoff, max(earth_delta)], min(zp), sun_cutoff, alpha=0.3, color='#F9D307', label="Keep Warm")  # yellow
+    if min(earth_delta) < earth_cutoff:
+        ax.fill_between([min(earth_delta), earth_cutoff], sun_cutoff, max(zp), alpha=0.3, color='#F38D25', label="Charge/Observe" )  # orange
+    if earth_cutoff < max(earth_delta):
+        ax.fill_between([earth_cutoff, max(earth_delta)], sun_cutoff, max(zp), alpha=0.3, color='#DA383D', label="Charge/Uplink")  # red
+
+    plt.legend()
+
+    plt.savefig(outfile)
+    plt.close()
+
+    #calculated total integration time
+    accumulated_integration_time = 0.0
+    time_since_last_charge = 0.0
+    int_time_array = list()
+    for i in range(0, len(x)):
+        int_time_array.append(0.0)
+
+    for i in range(1,len(x)):
+        if earth_delta[i] < 0.0 and zp[i] < 0.0 and time_since_last_charge < 2.0:
+            accumulated_integration_time += (x[i] - x[i-1])
+            time_since_last_charge += (x[i] - x[i-1])
+        int_time_array[i] = accumulated_integration_time
+        if zp[i] > 0.0:
+            time_since_last_charge = 0.0;
+
+    return site_data, x, int_time_array
 
     # print(site_data)
     # site_df = pd.DataFrame(site_data, columns=['site_name', 'earth_frac_below', 'sun_frac_below', 'earth_max_duration_below', "sun_max_duration_below", "both_max_duration_below"])
@@ -206,7 +263,7 @@ def main():
     required = parser.add_argument_group('required arguments')
     optional = parser.add_argument_group('optional arguments')
 
-    required.add_argument("-c", "--cone-width-data", dest='data_file', help="dB vs cone angle data table .csv file.", required=True)
+    #required.add_argument("-c", "--cone-width-data", dest='data_file', help="dB vs cone angle data table .csv file.", required=True)
     required.add_argument("-s", "--state-date", dest='start_date', help="start date of time period of interest in YYYY-MM-DD format", required=True)
     required.add_argument("-e", "--end-date", dest='end_date', help="end date of time period of interest in YYYY-MM-DD format", required=True)
     optional.add_argument("-o", "--output-dir", dest='output_directory', default="./", help="output directory, default is ./") #optional argument
@@ -216,7 +273,7 @@ def main():
 
     args = parser.parse_args()
 
-    data_file = os.path.abspath(args.data_file)
+    # data_file = os.path.abspath(args.data_file)
 
     #TODO validate date format
     start_date = args.start_date
@@ -228,7 +285,7 @@ def main():
     dB_horizon = float(args.dB_horizon)
     dB_antenna = float(args.dB_antenna)
 
-    print(data_file)
+
     print(start_date)
     print(end_date)
     print(odir)
@@ -236,27 +293,37 @@ def main():
     print(dB_horizon)
     print(dB_antenna)
 
-    #read data file generated with Neil Bassett's calc_width function
-    dB_el_df = pd.read_csv(data_file)
+    # #read data file generated with Neil Bassett's calc_width function
+    # dB_el_df = pd.read_csv(data_file)
+    # 
+    # print(dB_el_df)
 
-    print(dB_el_df)
+    #HEIGHTS extracted using https://quickmap.lroc.asu.edu/ 
+    #error is probably 50-100m
 
     #all Artemis-3 site options
+    #NAME, LAT, LON, HEIGHT (m)
     site_table = [
-        ["Faustini_Rim_A",  -87.9403, 88.97176 ],
-        ["Peak_Near_Shackleton",  -88.80072, 123.12689 ],
-        ["Connecting_Ridge", -89.44208, 219.38414],
-        ["Connecting_Ridge_Extension", -89.00059, 258.81705 ],
-        ["deGerlache_Rim_1", -88.66814, 289.25406 ],
-        ["deGerlache_Rim_2", -88.27753, 295.47124],
-        ["deGerlache_Kocher_Massif", -85.78549, 243.59109],
-        ["Haworth", -86.78431, 337.29546],
-        ["Malapert_Massif", -85.97930, 0.06820],
-        ["Leibnitz_Beta_Plateau", -85.42375, 31.97821 ],
-        ["Nobile_Rim_1", -85.46393, 37.36865],
-        ["Nobile_Rim_2", -83.97494, 58.85641],
-        ["Amundsen_Rim", -84.21276, 69.68302]
+        ["Faustini_Rim_A",  -87.9403, 88.97176, -150.0],
+        ["Peak_Near_Shackleton",  -88.80072, 123.12689, 1650.0],
+        ["Connecting_Ridge", -89.44208, 219.38414, 1850.0],
+        ["Connecting_Ridge_Extension", -89.00059, 258.81705, 1350.0 ],
+        ["deGerlache_Rim_1", -88.66814, 289.25406, 1300.0 ],
+        ["deGerlache_Rim_2", -88.27753, 295.47124, 200.0],
+        ["deGerlache_Kocher_Massif", -85.78549, 243.59109, 2750.0],
+        ["Haworth", -86.78431, 337.29546, 1650.0],
+        ["Malapert_Massif", -85.97930, 0.06820, 4800.0],
+        ["Leibnitz_Beta_Plateau", -85.42375, 31.97821, 6400.0],
+        ["Nobile_Rim_1", -85.46393, 37.36865, 6050.0],
+        ["Nobile_Rim_2", -83.97494, 58.85641, 1050.0],
+        ["Amundsen_Rim", -84.21276, 69.68302, 450.0]
         ]
+    # 
+    # site_table = [
+    #     ["Faustini_Rim_A",  -87.9403, 88.97176, -150.0]
+    #     ]
+
+
 
     #JPL Horizons object ids
     sun_id = 10
@@ -264,6 +331,7 @@ def main():
     moon_id = 301
 
     #constants
+    m2km = 1.0/1000.0
     MHz2KHz = 1000.0
     freq_MHz = 50; #diffraction is worse at lower frequencies, so use low end of band, 50MHz
     freq_kHZ = freq_MHz*MHz2KHz
@@ -271,19 +339,42 @@ def main():
 
     site_df = pd.DataFrame(columns=['site_name', 'earth_frac_below', 'sun_frac_below', 'earth_max_duration_below', "sun_max_duration_below", "both_max_duration_below"], dtype=object)
 
+    time_ax = list()
+    int_time_dict = {}
     for current_site in site_table:
-        print(current_site[0], current_site[1], current_site[2])
-        current_site_name = current_site[0];
-        current_site_location = {'lon': current_site[2], 'lat': current_site[1], 'elevation': height, 'body': moon_id}
+        print(current_site[0], current_site[1], current_site[2], current_site[3])
+        current_site_name = current_site[0]
+        current_site_height = current_site[3]*m2km
+        current_site_location = {'lon': current_site[2], 'lat': current_site[1], 'elevation': current_site_height, 'body': moon_id}
         earth_obj = Horizons(id=earth_id, location=current_site_location, epochs={'start':start_date, 'stop':end_date,'step':step}, )
         sun_obj = Horizons(id=sun_id, location=current_site_location, epochs={'start':start_date, 'stop':end_date,'step':step}, )
         earth_eph = earth_obj.ephemerides()
         sun_eph = sun_obj.ephemerides()
         print(earth_eph)
-        tmp_df = plot_time_series( earth_eph, sun_eph, current_site, dB_el_df, dB_horizon, dB_antenna, odir)
-        site_df = site_df.append(tmp_df, ignore_index=True)
+        tmp_df, x, int_time = plot_time_series( earth_eph, sun_eph, current_site, dB_horizon, dB_antenna, odir)
+        time_ax = x
+        int_time_dict[current_site_name] = int_time
+        # site_df = site_df.append(tmp_df, ignore_index=True)
 
     site_df.to_csv(os.path.join(odir, "site_illumination.csv") )
+
+    fig3 = plt.figure(figsize=(11,8))
+    for site in int_time_dict:
+        #next we plot the Earth elevation minus the elevaton limit vs the sun elevation 
+        #plot data
+        if int_time_dict[site][-1] > 0.0:
+            plt.plot(time_ax, int_time_dict[site], label=site)
+
+    plt.grid(True)
+    plt.title('Integration time vs time' )
+    plt.xlabel('Days since start')
+    plt.ylabel('Max possible observation time.')
+    plt.legend()
+    outfile = os.path.join( odir, "site_integration.png")
+    plt.savefig(outfile)
+    plt.close()
+
+
 
 #===== Official entry point ==============================
 

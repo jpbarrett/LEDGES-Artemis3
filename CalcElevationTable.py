@@ -25,7 +25,7 @@ def main():
     MHz2KHz = 1000.0
     freq_MHz = 50; #diffraction is worse at lower frequencies, so use low end of band, 50MHz
     freq_kHZ = freq_MHz*MHz2KHz
-    height = 0.010; #assume and elevation of 10m (TODO use LRO digital elevation model)
+    height = 0.0; #assume and elevation of 6km (worst site) (TODO use LRO digital elevation model)
 
     cone_data = list()
     dBspace = np.linspace(-10, -90, num=160)
