@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """Quick and dirty plotting of Earth/Sun elevation at Artemis-3 landing regions"""
 
-from builtins import range
 import sys
 import os
 import argparse
-from datetime import datetime
 import math
-import copy
 import json
 
 #JPL horizons for ephemerides
@@ -40,9 +37,9 @@ def earth_sun_statistics(x, earth_delta, sun_delta):
     #some statistics about the Earth/Sun position
     total_duration = max(x) - min(x) #time duration in days
 
-    earth_frac_below = 0.0;
-    sun_frac_below = 0.0
-    both_frac_below = 0.0
+    cumm_earth_below = 0.0;
+    cumm_sun_below = 0.0
+    cumm_both_below = 0.0
     earth_longest_duration_below = 0.0
     sun_longest_duration_below = 0.0
     both_longest_duration_below = 0.0
@@ -52,7 +49,7 @@ def earth_sun_statistics(x, earth_delta, sun_delta):
 
     for i in range(1,len(x)):
         if earth_delta[i] > 0.0:
-            earth_frac_below += (x[i] - x[i-1])
+            cumm_earth_below += (x[i] - x[i-1])
             earth_duration_below += (x[i] - x[i-1])
             if earth_duration_below > earth_longest_duration_below:
                 earth_longest_duration_below = earth_duration_below
@@ -60,7 +57,7 @@ def earth_sun_statistics(x, earth_delta, sun_delta):
             earth_duration_below = 0.0
 
         if sun_delta[i] < 0.0:
-            sun_frac_below += (x[i] - x[i-1])
+            cumm_sun_below += (x[i] - x[i-1])
             sun_duration_below += (x[i] - x[i-1])
             if sun_duration_below > sun_longest_duration_below:
                 sun_longest_duration_below = sun_duration_below
@@ -68,7 +65,7 @@ def earth_sun_statistics(x, earth_delta, sun_delta):
             sun_duration_below = 0.0
 
         if earth_delta[i] > 0.0 and sun_delta[i] < 0.0:
-            both_frac_below += (x[i] - x[i-1])
+            cumm_both_below += (x[i] - x[i-1])
             both_duration_below += (x[i] - x[i-1])
             if both_duration_below > both_longest_duration_below:
                 both_longest_duration_below = both_duration_below
@@ -80,9 +77,9 @@ def earth_sun_statistics(x, earth_delta, sun_delta):
     results["earth_longest_duration_below"] = earth_longest_duration_below
     results["sun_longest_duration_below"] = sun_longest_duration_below
     results["both_longest_duration_below"] = both_longest_duration_below
-    results["earth_duration_below"] = earth_duration_below
-    results["sun_duration_below"] = sun_duration_below
-    results["both_duration_below"] = both_duration_below
+    results["earth_duration_below"] = cumm_earth_below
+    results["sun_duration_below"] = cumm_sun_below
+    results["both_duration_below"] = cumm_both_below
 
     return results
 
@@ -100,7 +97,7 @@ def site_integration_time(x, earth_delta, sun_delta, battery_days):
             accumulated_integration_time += (x[i] - x[i-1])
             time_since_last_charge += (x[i] - x[i-1])
         intg_time_array[i] = accumulated_integration_time
-        if sun_delta[i] > 0.0: #assume charging time is neglibible 
+        if sun_delta[i] > 0.0: #assume time to charge batteries is nil
             time_since_last_charge = 0.0;
 
     results = dict()
@@ -172,8 +169,9 @@ def plot_earth_sun_time_series(earth_table, sun_table, current_site, cone_info, 
     lower_est = elev_limit - cone_err_lower
     upper_est = elev_limit + cone_err_upper
 
-    plt.hlines(y = upper_est, xmin=min(x), xmax=max(x), color = 'k', linestyle = '-')
-    plt.hlines(y = lower_est, xmin=min(x), xmax=max(x), color = 'k', linestyle = '-')
+    plt.hlines(y = upper_est, xmin=min(x), xmax=max(x), color = 'r', linestyle = '-')
+    plt.hlines(y = lower_est, xmin=min(x), xmax=max(x), color = 'r', linestyle = '-')
+    plt.hlines(y = 0, xmin=min(x), xmax=max(x), color = 'k', linestyle = '-') #nominal horizon
 
     ax  = plt.gca()
     ax.fill_between(x, ym, yp, label="Earth", color='g')
@@ -288,29 +286,27 @@ def main():
         current_site_name = current_site[0]
         current_site_height =  max(0,current_site[3])*lconst.m_to_km;  #negative height not allowed by calc_width function
         current_site_location = {'lon': current_site[2], 'lat': current_site[1], 'elevation': current_site_height, 'body': lconst.moon_id}
+        
         #call Neil Bassett's calc_width, for cone_width and upper/lower error for this dB suppression
         cone_info = calc_width(lconst.target_freq_kHz, current_site_height, dB_horizon)
-        print(cone_info[0], cone_info[1], cone_info[2])
+
         #call JPL Horizons for earth/sun positions
         earth_obj = Horizons(id=lconst.earth_id, location=current_site_location, epochs={'start':start_date, 'stop':end_date,'step':step}, )
         sun_obj = Horizons(id=lconst.sun_id, location=current_site_location, epochs={'start':start_date, 'stop':end_date,'step':step}, )
         earth_eph = earth_obj.ephemerides()
         sun_eph = sun_obj.ephemerides()
-        print(earth_eph)
+
         site_stats, intg_stats = plot_earth_sun_time_series(earth_eph, sun_eph, current_site, cone_info, dB_horizon+dB_antenna, battery_days, odir)
-        
-        # tmp_df, x, intg_time = plot_time_series(earth_eph, sun_eph, current_site, dB_horizon, dB_antenna, battery_days, odir)
+
         time_ax = intg_stats["time"]
         intg_time_dict[current_site_name] = intg_stats
         site_stats_dict[current_site_name] = site_stats
 
     #dump site stats to file
     site_stats_file = os.path.join(odir,"site_illumination.json")
-    print(site_stats_file)
+    print("dumping site stats to: ", site_stats_file)
     with open(site_stats_file, 'w') as ssf:
         json.dump(site_stats_dict, ssf)
-        print(site_stats_dict)
-
 
 
 #===== main entry point ==============================

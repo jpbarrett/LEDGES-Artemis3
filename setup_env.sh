@@ -5,6 +5,6 @@ pythondir="$current_dir/extern/lunar-RFI/calc_width"
 export PYTHONPATH=$pythondir:$PYTHONPATH
 export LEDGES_DIR=$current_dir
 
-#manually copy .pkl data file to this directory from submodule (submodule expects this to be in the root path)
+#KLUDGE manually copy .pkl data file to this directory from submodule (submodule expects this file to be in path)
 echo "copying 2d_interp_h_vs_dB.pkl to $LEDGES_DIR"
 cp "$current_dir/extern/lunar-RFI/calc_width/2d_interp_h_vs_dB.pkl" $current_dir
