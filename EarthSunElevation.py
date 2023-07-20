@@ -296,6 +296,7 @@ def main():
         earth_eph = earth_obj.ephemerides()
         sun_eph = sun_obj.ephemerides()
 
+        #TODO, add horizon mask calculated from LOLA DEM
         site_stats, intg_stats = plot_earth_sun_time_series(earth_eph, sun_eph, current_site, cone_info, dB_horizon+dB_antenna, battery_days, odir)
 
         time_ax = intg_stats["time"]
