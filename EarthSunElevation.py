@@ -291,6 +291,7 @@ def main():
         cone_info = calc_width(lconst.target_freq_kHz, current_site_height, dB_horizon)
 
         #call JPL Horizons for earth/sun positions
+        #TODO, cache ephemerides for site/time
         earth_obj = Horizons(id=lconst.earth_id, location=current_site_location, epochs={'start':start_date, 'stop':end_date,'step':step}, )
         sun_obj = Horizons(id=lconst.sun_id, location=current_site_location, epochs={'start':start_date, 'stop':end_date,'step':step}, )
         earth_eph = earth_obj.ephemerides()
